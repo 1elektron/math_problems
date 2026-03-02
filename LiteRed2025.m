@@ -61,6 +61,7 @@ GraphToAmplitude;
 
 
 PowerShifts;(*additions to power of denominators*)
+ExponentialNumerator;(*coefficients c_i for Exp[Sum[c_i D_i]] numerator factors in IBP generation*)
 
 
 NewDsSet;
@@ -700,6 +701,8 @@ StyleBox[\"basis\", \"TI\"]\)] or NonZeroSectors[\!\(\*
 StyleBox[\"basis\", \"TI\"]\)].";
 CutDs::usage="CutDs[\!\(\*
 StyleBox[\"basis\", \"TI\"]\)] gives a list {1,0,\[Ellipsis]}, where each 1 corresponds to a cut denominator.";
+ExponentialNumerator::usage="ExponentialNumerator[\!\(\*
+StyleBox[\"basis\", \"TI\"]\)] gives coefficients {c1,c2,\[Ellipsis]} for Exp[Sum[c_i D_i]] numerator factor used in GenerateIBP.";
 SPs::usage="SPs[\!\(\*
 StyleBox[\"basis\", \"TI\"]\)] gives a list of scalar products involving loop momenta in basis.";
 LMs::usage="LMs[\!\(\*
@@ -741,6 +744,12 @@ PowerShifts[nm_?DsBasisQ]:=PowerShifts[nm]=ConstantArray[0,Length@Ds[nm]]
 
 
 PowerShifts[nm_]:=ConstantArray[0,Length@Ds[nm]];
+
+
+ExponentialNumerator[nm_?DsBasisQ]:=ExponentialNumerator[nm]=ConstantArray[0,Length@Ds[nm]]
+
+
+ExponentialNumerator[nm_]:=ConstantArray[0,Length@Ds[nm]];
 
 
 DsBasisQ::usage="DsBasisQ[\!\(\*
@@ -1807,11 +1816,12 @@ StyleBox[\"basis\", \"TI\"]\)] gives the IBP&LI identities of the \!\(\*
 StyleBox[\"basis\", \"TI\"]\).";
 
 
-GenerateIBP[nm_]:=Module[{ds=LFDistribute[Ds@nm,sp],dim=Length[Ds@nm],lms=LMs@nm,ems=EMs@nm,le=Length@EMs@nm,qms,dp,sh,ibps,lis,slot},
+GenerateIBP[nm_]:=Module[{ds=LFDistribute[Ds@nm,sp],dim=Length[Ds@nm],lms=LMs@nm,ems=EMs@nm,le=Length@EMs@nm,qms,dp,en,sh,ibps,lis,slot},
 CurrentState[nm,GenerateIBP]=False;
 If[!ValueQ[Ds@nm],Message[NewDsBasis::notb];Return[$Failed]];qms=Join[lms,ems];dp=Table[Unique["n"],{dim}];
+en=Replace[ExponentialNumerator[nm],_List?(Length[#]==dim&):>#,_:>ConstantArray[0,dim]];
 sh=Thread[dp->dp+PowerShifts[nm]];
-ibps=Outer[Function[{qm,lm},Collectj[Expand[(j[nm,##1]&)@@dp (Boole[qm===lm]MetricTensor[]-Plus@@MapIndexed[Function[{den,ind},dp[[First[ind]]] (j[nm,##1]&@@IntegerDigits[2^(dim-First[ind]),2,dim])*Plus@@(2^Boole[#1===lm] sp[qm,#1] Coefficient[den,sp[lm,#1]]&)/@qms/. Toj[nm]],ds])],Factor[#/.sh]&]],qms,lms];
+ibps=Outer[Function[{qm,lm},Collectj[Expand[(j[nm,##1]&)@@dp (Boole[qm===lm]MetricTensor[]-Plus@@MapIndexed[Function[{den,ind},(dp[[First[ind]]] (j[nm,##1]&@@IntegerDigits[2^(dim-First[ind]),2,dim])+en[[First[ind]]]) *Plus@@(2^Boole[#1===lm] sp[qm,#1] Coefficient[den,sp[lm,#1]]&)/@qms/. Toj[nm]],ds])],Factor[#/.sh]&]],qms,lms];
 lis=Plus@@MapIndexed[(#1/.{j[nm,x__]:>(ibps[[Range[-Length@ems,-1],First@#2]]/.Thread[dp->dp+{x}])})&,Expand[(j[nm,##]&@@ConstantArray[0,{dim}])Outer[sp,lms,ems]/.Toj[nm]]];lis=Collectj[(lis[[##]]&@@Reverse[#])-(lis[[##]]&@@#),Factor[#]&]&/@Subsets[Range[Length@ems],{2}];
 IBP[nm]^=Function[Evaluate@Flatten[ibps]]/.Thread[dp->Table[slot[i],{i,dim}]]/.slot->Slot;
 LI[nm]^=Function[Evaluate@lis]/.Thread[dp->Table[slot[i],{i,dim}]]/.slot->Slot;
